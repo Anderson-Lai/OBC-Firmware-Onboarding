@@ -43,18 +43,45 @@ void initThermalSystemManager(lm75bd_config_t *config) {
 
 error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
   /* Send an event to the thermal manager queue */
+  thermal_mgr_event_type_t item = THERMAL_MGR_EVENT_MEASURE_TEMP_CMD;
+  xQueueSend(thermalMgrQueueHandle, &item, 10);
 
   return ERR_CODE_SUCCESS;
 }
 
 void osHandlerLM75BD(void) {
   /* Implement this function */
+  float temperature = 0.0;
+  readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature);
+
+  const int overTemperature = 80;
+  const int hysteresis = 75;
+
+  if (temperature >= overTemperature) {
+    thermal_mgr_event_type_t item = THERMAL_MGR_EVENT_OVER_TEMPERATURE;
+    xQueueSendFromISR(thermalMgrQueueHandle, &item, NULL);
+  } else if (temperature <= hysteresis) {
+    thermal_mgr_event_type_t item = THERMAL_MGR_EVENT_SAFE_OPERATING;
+    xQueueSendFromISR(thermalMgrQueueHandle, &item, NULL);
+  }
 }
 
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
   while (1) {
-    
+    thermal_mgr_event_t buffer;
+
+    xQueueReceive(thermalMgrQueueHandle, &buffer, 10);
+    if (buffer.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
+      float temperature = 0.0;
+
+      readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature);
+      addTemperatureTelemetry(temperature);
+    } else if (buffer.type == THERMAL_MGR_EVENT_OVER_TEMPERATURE) {
+      overTemperatureDetected();
+    } else if (buffer.type == THERMAL_MGR_EVENT_SAFE_OPERATING) {
+      safeOperatingConditions();
+    }
   }
 }
 
