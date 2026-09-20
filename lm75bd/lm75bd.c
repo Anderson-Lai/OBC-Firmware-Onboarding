@@ -27,11 +27,18 @@ error_code_t lm75bdInit(lm75bd_config_t *config) {
 
 error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
   /* Implement this driver function */
+  if (!temp)
+    return ERR_CODE_INVALID_ARG;
+
   uint8_t pointerRegister = 0;
-  i2cSendTo(devAddr, &pointerRegister, sizeof(pointerRegister));
+  if (i2cSendTo(devAddr, &pointerRegister, sizeof(pointerRegister)) != ERR_CODE_SUCCESS) {
+    return ERR_CODE_I2C_TRANSFER_TIMEOUT;
+  }
 
   uint8_t buf[] = {0, 0};
-  i2cReceiveFrom(devAddr, &buf, sizeof(buf));
+  if (i2cReceiveFrom(devAddr, &buf, sizeof(buf)) != ERR_CODE_SUCCESS) {
+    return ERR_CODE_I2C_TRANSFER_TIMEOUT;
+  }
 
   int16_t buffer = (int16_t) (( ((uint16_t)buf[0]) << 8 ) + buf[1]);
   if (buffer & (1 << 15)) {
