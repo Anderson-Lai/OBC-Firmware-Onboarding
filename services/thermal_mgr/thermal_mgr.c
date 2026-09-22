@@ -59,6 +59,8 @@ void osHandlerLM75BD(void) {
   float temperature = 0.0f;
 
   LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature));
+  if (errCode != ERR_CODE_SUCCESS)
+    return;
 
   const int overTemperature = 80;
   const int hysteresis = 75;
