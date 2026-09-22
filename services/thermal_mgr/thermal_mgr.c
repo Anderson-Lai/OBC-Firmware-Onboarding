@@ -71,12 +71,16 @@ void osHandlerLM75BD(void) {
     };
 
     LOG_IF_ERROR_CODE(thermalMgrSendEvent(&item));
+    if (errCode != ERR_CODE_SUCCESS)
+      return;
   } else if (temperature <= hysteresis) {
     thermal_mgr_event_t item = {
       .type = THERMAL_MGR_EVENT_SAFE_OPERATING
     };
 
     LOG_IF_ERROR_CODE(thermalMgrSendEvent(&item));
+    if (errCode != ERR_CODE_SUCCESS)
+      return;
   }
 }
 
