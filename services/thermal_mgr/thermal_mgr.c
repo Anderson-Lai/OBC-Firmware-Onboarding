@@ -56,32 +56,14 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
 void osHandlerLM75BD(void) {
   /* Implement this function */
   error_code_t errCode;
-  float temperature = 0.0f;
+  thermal_mgr_event_t event = {
+    .type = THERMAL_MGR_EVENT_INTERRUPT
+  };
 
-  LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature));
+  LOG_IF_ERROR_CODE(thermalMgrSendEvent(&event));
+  // check for the sake of checking
   if (errCode != ERR_CODE_SUCCESS)
     return;
-
-  const int overTemperature = 80;
-  const int hysteresis = 75;
-
-  if (temperature >= overTemperature) {
-    thermal_mgr_event_t item = {
-      .type = THERMAL_MGR_EVENT_OVER_TEMPERATURE
-    };
-
-    LOG_IF_ERROR_CODE(thermalMgrSendEvent(&item));
-    if (errCode != ERR_CODE_SUCCESS)
-      return;
-  } else if (temperature <= hysteresis) {
-    thermal_mgr_event_t item = {
-      .type = THERMAL_MGR_EVENT_SAFE_OPERATING
-    };
-
-    LOG_IF_ERROR_CODE(thermalMgrSendEvent(&item));
-    if (errCode != ERR_CODE_SUCCESS)
-      return;
-  }
 }
 
 static void thermalMgr(void *pvParameters) {
@@ -89,22 +71,27 @@ static void thermalMgr(void *pvParameters) {
   error_code_t errCode;
   while (1) {
     thermal_mgr_event_t buffer;
-
     if (xQueueReceive(thermalMgrQueueHandle, &buffer, portMAX_DELAY) == pdFALSE) {
       continue;
     }
 
-    if (buffer.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
-      float temperature = 0.0f;
-      LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature));
-      if (errCode != ERR_CODE_SUCCESS)
-        return;
+    float temperature = 0.0f;
+    LOG_IF_ERROR_CODE(readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temperature));
+    if (errCode != ERR_CODE_SUCCESS)
+      continue;
 
+    if (buffer.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
       addTemperatureTelemetry(temperature);
-    } else if (buffer.type == THERMAL_MGR_EVENT_OVER_TEMPERATURE) {
-      overTemperatureDetected();
-    } else if (buffer.type == THERMAL_MGR_EVENT_SAFE_OPERATING) {
-      safeOperatingConditions();
+    } else if (buffer.type == THERMAL_MGR_EVENT_INTERRUPT) {
+      lm75bd_config_t* params = (lm75bd_config_t*)pvParameters;
+      if (!params)
+        continue;
+
+      if (temperature >= params->overTempThresholdCelsius) {
+        overTemperatureDetected();
+      } else if (temperature <= params->hysteresisThresholdCelsius) {
+        safeOperatingConditions();
+      }
     }
   }
 }
